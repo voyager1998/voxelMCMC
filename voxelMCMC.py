@@ -36,6 +36,8 @@ def getAllSkandSize(x):
 def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk): # return the log
     S_k = allS_ks[k]
     sizeofSk = allsizeofSk[k]
+    if sizeofSk == 0:
+        return 0
     sizeofS_k0 = 0
     for i in range(np.shape(shadowCluster)[0]):
         for j in range(np.shape(shadowCluster)[1]):
@@ -46,6 +48,8 @@ def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk): # return 
 def fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk):
     S_0 = allS_ks[0]
     sizeofS0 = allsizeofSk[0]
+    if sizeofS0 == 0:
+        return 0
     sizeofS_00 = 0
     for i in range(np.shape(shadowCluster)[0]):
         for j in range(np.shape(shadowCluster)[1]):
@@ -63,6 +67,8 @@ def freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk):
 def entrophySk(shadowCluster, x, k, allS_ks, allsizeofSk):
     S_k = allS_ks[k]
     sizeofSk = allsizeofSk[k]
+    if sizeofSk == 0:
+        return 0
     entrophy = 0
     S_kc = np.multiply(S_k, shadowCluster)
     # plt.figure()
