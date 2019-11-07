@@ -1,6 +1,8 @@
 import numpy as np
 from scipy.optimize import basinhopping
 import random
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import math
 
@@ -92,7 +94,7 @@ def StrongSensorModelforMCMC(x):
     x = np.reshape(x, (100,100))
     shadowCluster = generateShadowCluster()
     allS_ks, allsizeofSk = getAllSkandSize(x)
-    return StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
+    return -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
 
 if __name__== '__main__':
     x0 = np.ndarray((100,100), int)
@@ -102,12 +104,13 @@ if __name__== '__main__':
     plt.figure()
     plt.imshow(x0)
     plt.title("initial guess")
-    
+    plt.savefig("initial_guess.png")
+
     shadowCluster = generateShadowCluster()
     plt.figure()
     plt.imshow(shadowCluster)
     plt.title("shadow Cluster")
-
+    plt.savefig("shadow_Cluster.png")
 # -------------------------------------------------
     allS_ks, allsizeofSk = getAllSkandSize(x0)
 
@@ -116,9 +119,12 @@ if __name__== '__main__':
     print(StrongSensorModel(shadowCluster, x0, allS_ks, allsizeofSk))
 
     minimizer_kwargs = {"method": "BFGS"}
-    mcmc = basinhopping(StrongSensorModelforMCMC, x0, minimizer_kwargs=minimizer_kwargs)
+    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter = 100, minimizer_kwargs=minimizer_kwargs)
+    print(type(mcmc))
+    print(np.shape(mcmc.x))
+    print(mcmc.fun)
     plt.figure()
-    plt.imshow(mcmc)
+    plt.imshow(np.reshape(mcmc.x, (100, 100)))
     plt.title("final guess")
-
+    plt.savefig("final_guess_100.png")
     plt.show()
