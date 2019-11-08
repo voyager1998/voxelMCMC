@@ -11,7 +11,7 @@ import sys
 K = 10
 C = 3
 NEGINF = -99999999999
-IMGWH = 10
+IMGWH = 20
 FREESPACEWEIGHT = 10
 
 
@@ -156,10 +156,14 @@ class ChangeToNeighbourLabel(object):
     def __call__(self, x):
         i = random.randint(0, IMGWH-1)  # endpoints included
         j = random.randint(0, IMGWH-1)
-        dx = random.randint(-1,1)
-        dy = random.randint(-1,1)
-        index = int(((i+dy)*IMGWH + j+dx)%(IMGWH**2))
-        x[i*IMGWH + j] = int(x[index])
+        choice = random.randint(0,1)
+        if choice == 0:
+            x[i*IMGWH + j] = 0
+        else:
+            dx = random.randint(-1,1)
+            dy = random.randint(-1,1)
+            index = int(((i+dy)*IMGWH + j+dx)%(IMGWH**2))
+            x[i*IMGWH + j] = int(x[index])
         return x
 
 
@@ -199,7 +203,7 @@ if __name__ == '__main__':
     minimizer_kwargs = {"method": "BFGS"}
     mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=1000, \
             minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
-                stepsize=K, callback=progressCallback, niter_success=20)
+                stepsize=K, callback=progressCallback)
     print(type(mcmc))
     print(np.shape(mcmc.x))
     print(mcmc.fun)
