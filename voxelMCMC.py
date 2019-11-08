@@ -11,7 +11,7 @@ import sys
 K = 10
 C = 3
 NEGINF = -99999999999
-IMGWH = 20
+IMGWH = 10
 FREESPACEWEIGHT = 10
 
 
@@ -200,8 +200,8 @@ if __name__ == '__main__':
     print(StrongSensorModelforMCMC(x0))
 
     takestep = ChangeToNeighbourLabel()
-    minimizer_kwargs = {"method": "BFGS"}
-    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=1000, \
+    minimizer_kwargs = {"method": "Nelder-Mead"}
+    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=100, \
             minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
                 stepsize=K, callback=progressCallback)
     print(type(mcmc))
@@ -211,5 +211,5 @@ if __name__ == '__main__':
     plt.figure()
     plt.imshow(np.reshape(mcmc.x, (IMGWH, IMGWH)))
     plt.title("final guess")
-    plt.savefig("final_guess_1000.png")
+    plt.savefig("final_guess_100.png")
 
