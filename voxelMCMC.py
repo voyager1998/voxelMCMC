@@ -1,6 +1,7 @@
 from __future__ import print_function
 import numpy as np
 from scipy.optimize import basinhopping
+from scipy.optimize import HessianUpdateStrategy
 import random
 import matplotlib
 matplotlib.use('Agg')
@@ -157,6 +158,7 @@ class ChangeToNeighbourLabel(object):
         i = random.randint(0, IMGWH-1)  # endpoints included
         j = random.randint(0, IMGWH-1)
         choice = random.randint(0,1)
+        # choice = 1
         if choice == 0:
             x[i*IMGWH + j] = 0
         else:
@@ -200,7 +202,8 @@ if __name__ == '__main__':
     print(StrongSensorModelforMCMC(x0))
 
     takestep = ChangeToNeighbourLabel()
-    minimizer_kwargs = {"method": "Nelder-Mead"}
+    minimizer_kwargs = {"method": "BFGS"}
+    # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
     mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=100, \
             minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
                 stepsize=K, callback=progressCallback)
