@@ -1,41 +1,54 @@
+from __future__ import print_function
 import numpy as np
 from scipy.optimize import basinhopping
 import random
-# import matplotlib
-# matplotlib.use('Agg')
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import math
+import sys
 
 K = 10
 C = 3
 NEGINF = -99999999999
+IMGWH = 10
+FREESPACEWEIGHT = 10
+
+
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+
+
 def generateShadowCluster():
-    shadowCluster = np.zeros((100, 100), int)
-    for i in range(10, 30):
-        for j in range(10,80):
+    shadowCluster = np.zeros((IMGWH, IMGWH), int)
+    for i in range(int(0.1*IMGWH), int(0.3*IMGWH)):
+        for j in range(int(0.1*IMGWH), int(0.8*IMGWH)):
             shadowCluster[i][j] = 1
-    for i in range(40, 80):
-        for j in range(20,40):
+    for i in range(int(0.4*IMGWH), int(0.8*IMGWH)):
+        for j in range(int(0.2*IMGWH), int(0.4*IMGWH)):
             shadowCluster[i][j] = 2
-    for i in range(60, 90):
-        for j in range(60,95):
+    for i in range(int(0.6*IMGWH), int(0.9*IMGWH)):
+        for j in range(int(0.6*IMGWH), int(0.95*IMGWH)):
             shadowCluster[i][j] = 3
     return shadowCluster
+
 
 def getBelObjectMask(x, k):
     result = x == k
     return result
 
+
 def getAllSkandSize(x):
     allS_ks = [None] * (K+1)
     allsizeofSk = [None] * (K+1)
     for k in range(K+1):
-        S_k = getBelObjectMask(x,k)
+        S_k = getBelObjectMask(x, k)
         allS_ks[k] = S_k
         allsizeofSk[k] = np.count_nonzero(S_k)
     return allS_ks, allsizeofSk
 
-def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk): # return the log
+
+def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk):  # return the log
     S_k = allS_ks[k]
     sizeofSk = allsizeofSk[k]
     if sizeofSk == 0:
@@ -47,7 +60,8 @@ def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk): # return 
                 sizeofS_k0 += 1
     if sizeofS_k0 == sizeofSk:
         return NEGINF
-    return sizeofSk * np.log(1-sizeofS_k0/sizeofSk) 
+    return sizeofSk * np.log(1-sizeofS_k0/sizeofSk)
+
 
 def fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk):
     S_0 = allS_ks[0]
@@ -61,14 +75,17 @@ def fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk):
                 sizeofS_00 += 1
     if sizeofS_00 == 0:
         return NEGINF
-    return sizeofS0 * np.log(sizeofS_00/sizeofS0) 
+    return sizeofS0 * np.log(sizeofS_00/sizeofS0)
+
 
 def freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk):
     result = 0
     result += fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk)
     for k in range(1, K+1):
-        result += obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk)
+        result += obj_fspace_overlapping(shadowCluster,
+                                         x, k, allS_ks, allsizeofSk)
     return result
+
 
 def entrophySk(shadowCluster, x, k, allS_ks, allsizeofSk):
     S_k = allS_ks[k]
@@ -87,6 +104,7 @@ def entrophySk(shadowCluster, x, k, allS_ks, allsizeofSk):
         entrophy += sizeofSkc/sizeofSk * math.log(sizeofSkc/sizeofSk, C)
     return -entrophy
 
+
 def probabilityShadowCluster(shadowCluster, x, allS_ks, allsizeofSk):
     p = 0
     for k in range(1, K + 1):
@@ -94,30 +112,67 @@ def probabilityShadowCluster(shadowCluster, x, allS_ks, allsizeofSk):
         if temp == 1:
             p += NEGINF
         else:
-            p += allsizeofSk[k] * np.log(1- temp)
+            p += allsizeofSk[k] * np.log(1 - temp)
     return p
 
+
 def StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk):
-    return freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk)\
-            + probabilityShadowCluster(shadowCluster,x,allS_ks,allsizeofSk)
+    return FREESPACEWEIGHT * freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk)\
+            + probabilityShadowCluster(shadowCluster, x, allS_ks, allsizeofSk)
+
 
 def StrongSensorModelforMCMC(x):
-    x = np.reshape(x, (100,100))
+    x = np.reshape(x, (IMGWH, IMGWH))
+    x = x.astype(int)
     shadowCluster = generateShadowCluster()
     allS_ks, allsizeofSk = getAllSkandSize(x)
     return -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
 
-class MyTakeStep(object):
-   def __init__(self, stepsize=1):
-       self.stepsize = stepsize
-   def __call__(self, x):
-       i = random.randint(0, 100)
-       j = random.randint(0, 100)
-       x[i*100+j] = random.randint(0,K)
-       return x
+
+class State(object):
+    def __init__(self, width=IMGWH):
+        self.x0 = np.ndarray((IMGWH, IMGWH), int)
+        for i in range(np.shape(self.x0)[0]):
+            for j in range(np.shape(self.x0)[1]):
+                self.x0[i][j] = random.randint(0,K)
+        self.shadowCluster = generateShadowCluster()
+
+
+class ChangeRandomly(object):
+    def __init__(self, stepsize=1):
+        self.stepsize = stepsize
+
+    def __call__(self, x):
+        i = random.randint(0, IMGWH-1)  # endpoints included
+        j = random.randint(0, IMGWH-1)
+        x[i*IMGWH + j] = random.randint(0, K)
+        return x
+
+
+class ChangeToNeighbourLabel(object):
+    def __init__(self, stepsize=1):
+        self.stepsize = stepsize
+
+    def __call__(self, x):
+        i = random.randint(0, IMGWH-1)  # endpoints included
+        j = random.randint(0, IMGWH-1)
+        dx = random.randint(-1,1)
+        dy = random.randint(-1,1)
+        index = int(((i+dy)*IMGWH + j+dx)%(IMGWH**2))
+        x[i*IMGWH + j] = int(x[index])
+        return x
+
+
+def progressCallback(x, f, accepted):
+    eprint("at minima %.4f accepted %d" % (f, int(accepted)))
+    # plt.figure()
+    plt.imshow(np.reshape(x, (IMGWH, IMGWH)))
+    plt.title("Current guess")
+    plt.savefig("Current_guess.png")
+
 
 if __name__ == '__main__':
-    x0 = np.ndarray((100,100), int)
+    x0 = np.ndarray((IMGWH, IMGWH), int)
     for i in range(np.shape(x0)[0]):
         for j in range(np.shape(x0)[1]):
             x0[i][j] = random.randint(0,K)
@@ -125,6 +180,7 @@ if __name__ == '__main__':
     plt.imshow(x0)
     plt.title("initial guess")
     plt.savefig("initial_guess.png")
+    print(x0)
 
     shadowCluster = generateShadowCluster()
     plt.figure()
@@ -139,17 +195,17 @@ if __name__ == '__main__':
     print(StrongSensorModel(shadowCluster, x0, allS_ks, allsizeofSk))
     print(StrongSensorModelforMCMC(x0))
 
-    mytakestep = MyTakeStep()
+    takestep = ChangeToNeighbourLabel()
     minimizer_kwargs = {"method": "BFGS"}
-    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=1, \
-            minimizer_kwargs=minimizer_kwargs, disp=True,take_step=mytakestep, stepsize=K)
+    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=1000, \
+            minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
+                stepsize=K, callback=progressCallback, niter_success=20)
     print(type(mcmc))
     print(np.shape(mcmc.x))
     print(mcmc.fun)
+    print(np.reshape(mcmc.x, (IMGWH, IMGWH)))
     plt.figure()
-    plt.imshow(np.reshape(mcmc.x, (100, 100)))
+    plt.imshow(np.reshape(mcmc.x, (IMGWH, IMGWH)))
     plt.title("final guess")
-    plt.savefig("final_guess_1.png")
-
-    plt.show()
+    plt.savefig("final_guess_1000.png")
 

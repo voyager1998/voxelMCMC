@@ -1,5 +1,9 @@
+from __future__ import print_function
 from voxelMCMC import *
-
+import sys
+def eprint(*args, **kwargs):
+    print(*args, file=sys.stderr, **kwargs)
+    
 if __name__ == '__main__':
     shadowCluster = generateShadowCluster()
     plt.figure()
@@ -78,5 +82,7 @@ if __name__ == '__main__':
     print(freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk))
     print(probabilityShadowCluster(shadowCluster, x, allS_ks, allsizeofSk))
     print(StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk))    
+
+    eprint("test")
 
     plt.show()
