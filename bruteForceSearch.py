@@ -1,44 +1,52 @@
 from voxelMCMC import *
 
+Kbfs = 3
+Cbfs = 2
+IMGWHbfs = 3
+
+def arrayPlus1(x, length, maxNum):
+    x[length-1] += 1
+    for i in range(length, 1, -1):
+        if x[i-1] > maxNum:
+            x[i-1] = 0
+            x[i-2] += 1
+    return x
+
 if __name__ == '__main__':
-    x0 = np.ndarray((IMGWH, IMGWH), int)
-    for i in range(np.shape(x0)[0]):
-        for j in range(np.shape(x0)[1]):
-            x0[i][j] = random.randint(0,K)
-    plt.figure()
-    plt.imshow(x0)
-    plt.title("initial guess")
-    plt.savefig("initial_guess.png")
-    print(x0)
-
-    min_score = StrongSensorModelforMCMC(x0)
-    final_state = x0
-
-    found = 0
-
-    for i in range(np.shape(x0)[0]):
-        for j in range(np.shape(x0)[1]):
-            for l in range(1, K+1):
-                new_label = int((x0[i][j] + l)%(K+1))
-                temp = x0
-                temp[i][j] = new_label
-                score = StrongSensorModelforMCMC(temp)
-                if score < min_score:
-                    min_score = score
-                    print(min_score)
-                    final_state = temp
-                if min_score == 0:
-                    found = 1
-                    break
-            if found == 1:
-                break
-        if found == 1:
-            break
+    shadowCluster = np.zeros((IMGWHbfs, IMGWHbfs), int)
+    shadowCluster[0][0] = 1
+    shadowCluster[0][1] = 1
+    shadowCluster[1][0] = 1
+    shadowCluster[0][2] = 2
+    shadowCluster[1][2] = 2
+    shadowCluster[2][2] = 2
+    shadowCluster[2][1] = 2
 
     plt.figure()
-    plt.imshow(final_state)
-    plt.title("final guess")
-    plt.savefig("bruteForceSearch.png")
-    print(min_score)
-    print(final_state)
+    plt.imshow(shadowCluster)
+    plt.title("shadow Cluster")
+    plt.savefig("shadow_Cluster.png")
+
+    x = np.zeros((IMGWHbfs * IMGWHbfs, ), int)
+    print(x)
+
+    fitCount = 0
+
+    while (x[0] <= Kbfs):
+        x = np.reshape(x, (IMGWHbfs, IMGWHbfs))
+        allS_ks = [None] * (Kbfs+1)
+        allsizeofSk = [None] * (Kbfs+1)
+        for k in range(Kbfs+1):
+            S_k = getBelObjectMask(x, k)
+            allS_ks[k] = S_k
+            allsizeofSk[k] = np.count_nonzero(S_k)
         
+        if StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk) == 0:
+            fitCount += 1
+            plt.imshow(x)
+            plt.title("solution image")
+            plt.savefig("bruteForceResult/solution_"+ str(fitCount) + ".png")
+
+        x = np.reshape(x, (IMGWHbfs * IMGWHbfs, ))
+        arrayPlus1(x, IMGWHbfs * IMGWHbfs, Kbfs)
+        # print(arrayPlus1(x, IMGWHbfs * IMGWHbfs, Kbfs))
