@@ -12,7 +12,8 @@ import sys
 K = 10
 C = 3
 NEGINF = -99999999999
-IMGWH = 10
+IMGH = 10
+IMGW = 20
 FREESPACEWEIGHT = 10
 
 
@@ -21,15 +22,15 @@ def eprint(*args, **kwargs):
 
 
 def generateShadowCluster():
-    shadowCluster = np.zeros((IMGWH, IMGWH), int)
-    for i in range(int(0.1*IMGWH), int(0.3*IMGWH)):
-        for j in range(int(0.1*IMGWH), int(0.8*IMGWH)):
+    shadowCluster = np.zeros((IMGH, IMGW), int)
+    for i in range(int(0.1*IMGH), int(0.3*IMGH)):
+        for j in range(int(0.1*IMGW), int(0.8*IMGW)):
             shadowCluster[i][j] = 1
-    for i in range(int(0.4*IMGWH), int(0.8*IMGWH)):
-        for j in range(int(0.2*IMGWH), int(0.4*IMGWH)):
+    for i in range(int(0.4*IMGH), int(0.8*IMGH)):
+        for j in range(int(0.2*IMGW), int(0.4*IMGW)):
             shadowCluster[i][j] = 2
-    for i in range(int(0.6*IMGWH), int(0.9*IMGWH)):
-        for j in range(int(0.6*IMGWH), int(0.95*IMGWH)):
+    for i in range(int(0.6*IMGH), int(0.9*IMGH)):
+        for j in range(int(0.6*IMGW), int(0.95*IMGW)):
             shadowCluster[i][j] = 3
     return shadowCluster
 
@@ -123,30 +124,30 @@ def StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk):
 
 
 def StrongSensorModelforMCMC(x):
-    x = np.reshape(x, (IMGWH, IMGWH))
+    x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
     shadowCluster = generateShadowCluster()
     allS_ks, allsizeofSk = getAllSkandSize(x)
     return -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
 
-
+"""
 class State(object):
-    def __init__(self, width=IMGWH):
-        self.x0 = np.ndarray((IMGWH, IMGWH), int)
+    def __init__(self, width=IMGH):
+        self.x0 = np.ndarray((IMGH, IMGH), int)
         for i in range(np.shape(self.x0)[0]):
             for j in range(np.shape(self.x0)[1]):
                 self.x0[i][j] = random.randint(0,K)
         self.shadowCluster = generateShadowCluster()
-
+"""
 
 class ChangeRandomly(object):
     def __init__(self, stepsize=1):
         self.stepsize = stepsize
 
     def __call__(self, x):
-        i = random.randint(0, IMGWH-1)  # endpoints included
-        j = random.randint(0, IMGWH-1)
-        x[i*IMGWH + j] = random.randint(0, K)
+        i = random.randint(0, IMGH-1)  # endpoints included
+        j = random.randint(0, IMGW-1)
+        x[i*IMGW + j] = random.randint(0, K)
         return x
 
 
@@ -155,30 +156,30 @@ class ChangeToNeighbourLabel(object):
         self.stepsize = stepsize
 
     def __call__(self, x):
-        i = random.randint(0, IMGWH-1)  # endpoints included
-        j = random.randint(0, IMGWH-1)
+        i = random.randint(0, IMGH-1)  # endpoints included
+        j = random.randint(0, IMGW-1)
         choice = random.randint(0,1)
         # choice = 1
         if choice == 0:
-            x[i*IMGWH + j] = 0
+            x[i*IMGW + j] = 0
         else:
             dx = random.randint(-1,1)
             dy = random.randint(-1,1)
-            index = int(((i+dy)*IMGWH + j+dx)%(IMGWH**2))
-            x[i*IMGWH + j] = int(x[index])
+            index = int(((i+dy)*IMGW + j+dx)%(IMGH*IMGW))
+            x[i*IMGW + j] = int(x[index])
         return x
 
 
 def progressCallback(x, f, accepted):
     eprint("at minima %.4f accepted %d" % (f, int(accepted)))
     # plt.figure()
-    plt.imshow(np.reshape(x, (IMGWH, IMGWH)))
+    plt.imshow(np.reshape(x, (IMGH, IMGW)))
     plt.title("Current guess")
     plt.savefig("Current_guess.png")
 
 
 if __name__ == '__main__':
-    x0 = np.ndarray((IMGWH, IMGWH), int)
+    x0 = np.ndarray((IMGH, IMGW), int)
     for i in range(np.shape(x0)[0]):
         for j in range(np.shape(x0)[1]):
             x0[i][j] = random.randint(0,K)
@@ -210,9 +211,9 @@ if __name__ == '__main__':
     print(type(mcmc))
     print(np.shape(mcmc.x))
     print(mcmc.fun)
-    print(np.reshape(mcmc.x, (IMGWH, IMGWH)))
+    print(np.reshape(mcmc.x, (IMGH, IMGW)))
     plt.figure()
-    plt.imshow(np.reshape(mcmc.x, (IMGWH, IMGWH)))
+    plt.imshow(np.reshape(mcmc.x, (IMGH, IMGW)))
     plt.title("final guess")
     plt.savefig("final_guess_100.png")
 
