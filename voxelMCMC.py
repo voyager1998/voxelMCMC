@@ -12,8 +12,8 @@ import sys
 K = 10
 C = 3
 NEGINF = -99999999999
-IMGH = 4
-IMGW = 4
+IMGH = 10
+IMGW = 10
 FREESPACEWEIGHT = 10
 
 
@@ -21,7 +21,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def manualGenerate():
+def manualGenerateShadow():
     shadowCluster = np.zeros((IMGH, IMGW), int)
     for i in range(int(0.1*IMGH), int(0.3*IMGH)):
         for j in range(int(0.1*IMGW), int(0.8*IMGW)):
@@ -32,6 +32,26 @@ def manualGenerate():
     for i in range(int(0.6*IMGH), int(0.9*IMGH)):
         for j in range(int(0.6*IMGW), int(0.95*IMGW)):
             shadowCluster[i][j] = 3
+    return shadowCluster
+
+
+def manualGenerateShapeCompletion():
+    shadowCluster = np.zeros((IMGH, IMGW), int)
+    for i in range(int(0.1*IMGH), int(0.3*IMGH)):
+        for j in range(int(0.1*IMGW), int(0.4*IMGW)):
+            shadowCluster[i][j] = 1
+    for i in range(int(0.2*IMGH), int(0.3*IMGH)):
+        for j in range(int(0.5*IMGW), int(0.8*IMGW)):
+            shadowCluster[i][j] = 2
+    for i in range(int(0.5*IMGH), int(0.7*IMGH)):
+        for j in range(int(0.2*IMGW), int(0.4*IMGW)):
+            shadowCluster[i][j] = 3
+    for i in range(int(0.6*IMGH), int(0.7*IMGH)):
+        for j in range(int(0.6*IMGW), int(0.7*IMGW)):
+            shadowCluster[i][j] = 4
+    for i in range(int(0.7*IMGH), int(0.9*IMGH)):
+        for j in range(int(0.6*IMGW), int(0.9*IMGW)):
+            shadowCluster[i][j] = 5
     return shadowCluster
 
 
@@ -70,6 +90,9 @@ def obj_fspace_overlapping(shadowCluster, x, k, allS_ks, allsizeofSk):  # return
 
 
 def fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk):
+    sizeofFreespace = np.count_nonzero(shadowCluster == 0)
+    if sizeofFreespace == 0:
+        return 0
     S_0 = allS_ks[0]
     sizeofS0 = allsizeofSk[0]
     if sizeofS0 == 0:
@@ -81,7 +104,7 @@ def fspace_fspace_overlapping(shadowCluster, x, allS_ks, allsizeofSk):
                 sizeofS_00 += 1
     if sizeofS_00 == 0:
         return NEGINF
-    return sizeofS0 * np.log(sizeofS_00/sizeofS0)
+    return sizeofS0 * np.log(sizeofS_00/sizeofFreespace)
 
 
 def freeSpaceOverlapping(shadowCluster, x, K, allS_ks, allsizeofSk):
@@ -130,7 +153,7 @@ def StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk):
 def StrongSensorModelforMCMC(x):
     x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
-    shadowCluster = manualGenerate() # TODO: change it to depending on shape completion
+    shadowCluster = manualGenerateShadow() # TODO: change it to depending on shape completion
     allS_ks, allsizeofSk = getAllSkandSize(x)
     return -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
 
@@ -170,10 +193,23 @@ def ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi):
 def ShapeCompletionOverlapForMCMC(x):
     x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
-    shapeCompletion = manualGenerate()
+    shapeCompletion = manualGenerateShapeCompletion()
     allS_ks, allsizeofSk = getAllSkandSize(x)
     allq_is, allsizeofqi = getAllqi(shapeCompletion)
     return -ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi)
+
+
+def SensorModelCombined(x):
+    x = np.reshape(x, (IMGH, IMGW))
+    x = x.astype(int)
+    allS_ks, allsizeofSk = getAllSkandSize(x)
+    shadowCluster = manualGenerateShadow() # TODO: change it to depending on shape completion
+    SSM = -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
+    shapeCompletion = manualGenerateShapeCompletion()
+    allq_is, allsizeofqi = getAllqi(shapeCompletion)
+    SCO = -ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi)
+    return SSM + SCO
+
 
 """
 class State(object):
@@ -182,7 +218,7 @@ class State(object):
         for i in range(np.shape(self.x0)[0]):
             for j in range(np.shape(self.x0)[1]):
                 self.x0[i][j] = random.randint(0,K)
-        self.shadowCluster = manualGenerate()
+        self.shadowCluster = manualGenerateShadow()
 """
 
 class ChangeRandomly(object):
@@ -208,15 +244,29 @@ class ChangeToNeighbourLabel(object):
     def __call__(self, x):
         i = random.randint(0, IMGH-1)  # endpoints included
         j = random.randint(0, IMGW-1)
-        choice = random.randint(0,1)
+        choice = random.randint(0,4)
         # choice = 1
-        if choice == 0:
+        if choice == 0 or choice == 1:
+            if x[i*IMGW + j] == 0:
+                for t in range(10):
+                    i = random.randint(0, IMGH-1)
+                    j = random.randint(0, IMGW-1)
+                    if x[i*IMGW + j] != 0:
+                        break
             x[i*IMGW + j] = 0
-        else:
+        elif choice == 2 or choice == 3:
+            if x[i*IMGW + j] == 0:
+                for t in range(10):
+                    i = random.randint(0, IMGH-1)
+                    j = random.randint(0, IMGW-1)
+                    if x[i*IMGW + j] != 0:
+                        break
             dx = random.randint(-1,1)
             dy = random.randint(-1,1)
             index = int(((i+dy)*IMGW + j+dx)%(IMGH*IMGW))
-            x[i*IMGW + j] = int(x[index])
+            x[index] = int(x[i*IMGW + j])
+        else:
+            x[i*IMGW + j] = random.randint(0, K)
         return x
 
 
@@ -230,20 +280,37 @@ def progressCallback(x, f, accepted):
 
 if __name__ == '__main__':
     x0 = np.ndarray((IMGH, IMGW), int)
-    for i in range(np.shape(x0)[0]):
-        for j in range(np.shape(x0)[1]):
-            x0[i][j] = random.randint(0,K)
+    # for i in range(np.shape(x0)[0]):
+    #     for j in range(np.shape(x0)[1]):
+    #         x0[i][j] = random.randint(0,K)
+    x0 = np.array( [[0., 0., 0., 1., 0., 0., 8., 0., 0., 0.],
+                    [0., 1., 1., 1., 4., 4., 5., 8., 0., 0.],
+                    [0., 5., 1., 1., 4., 8., 8., 8., 0., 0.],
+                    [0., 5., 0., 5., 0., 0., 0., 0., 0., 0.],
+                    [0., 0., 2., 2., 0., 0., 0., 0., 0., 0.],
+                    [0., 0., 2., 2., 0., 0., 0., 0., 0., 0.],
+                    [0., 2., 3., 3., 0., 0., 6., 0., 0., 0.],
+                    [0., 0., 7., 5., 0., 6., 6., 6., 6., 0.],
+                    [0., 1., 0., 0., 4., 0., 9., 6., 6., 0.],
+                    [6., 0., 0., 0., 0., 0., 0., 0., 0., 0.]])
     plt.figure()
     plt.imshow(x0)
     plt.title("initial guess")
     plt.savefig("initial_guess.png")
     print(x0)
 
-    shadowCluster = manualGenerate()
+    shadowCluster = manualGenerateShadow()
     plt.figure()
     plt.imshow(shadowCluster)
     plt.title("shadow Cluster")
     plt.savefig("shadow_Cluster.png")
+
+    shapeCompletion = manualGenerateShapeCompletion()
+    plt.figure()
+    plt.imshow(shapeCompletion)
+    plt.title("shape Completion")
+    plt.savefig("Shape_Completion.png")
+
 # -------------------------------------------------
     allS_ks, allsizeofSk = getAllSkandSize(x0)
     allq_is, allsizeofqi = getAllqi(shadowCluster)
@@ -257,7 +324,7 @@ if __name__ == '__main__':
     takestep = ChangeToNeighbourLabel()
     minimizer_kwargs = {"method": "BFGS"}
     # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
-    mcmc = basinhopping(ShapeCompletionOverlapForMCMC, x0, niter=100, \
+    mcmc = basinhopping(SensorModelCombined, x0, niter=300, \
             minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
                 stepsize=K, callback=progressCallback)
     print(type(mcmc))

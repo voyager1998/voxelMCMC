@@ -1,8 +1,8 @@
 from voxelMCMC import *
 
-Kbfs = 3
-Cbfs = 2
-IMGWHbfs = 3
+Kbfs = K
+Cbfs = C
+IMGWHbfs = IMGH
 
 def arrayPlus1(x, length, maxNum):
     x[length-1] += 1
@@ -27,6 +27,22 @@ if __name__ == '__main__':
     plt.title("shadow Cluster")
     plt.savefig("shadow_Cluster.png")
 
+    ShapeCompletion = np.zeros((IMGWHbfs, IMGWHbfs), int)
+    ShapeCompletion[0][0] = 0
+    ShapeCompletion[0][1] = 1
+    ShapeCompletion[1][0] = 2
+    ShapeCompletion[0][2] = 3
+    ShapeCompletion[1][2] = 3
+    ShapeCompletion[2][2] = 0
+    ShapeCompletion[2][1] = 4
+
+    plt.figure()
+    plt.imshow(ShapeCompletion)
+    plt.title("Shape Completion")
+    plt.savefig("Shape_Completion.png")
+
+    allq_is, allsizeofqi = getAllqi(ShapeCompletion)
+
     x = np.zeros((IMGWHbfs * IMGWHbfs, ), int)
     print(x)
 
@@ -34,14 +50,9 @@ if __name__ == '__main__':
 
     while (x[0] <= Kbfs):
         x = np.reshape(x, (IMGWHbfs, IMGWHbfs))
-        allS_ks = [None] * (Kbfs+1)
-        allsizeofSk = [None] * (Kbfs+1)
-        for k in range(Kbfs+1):
-            S_k = getBelObjectMask(x, k)
-            allS_ks[k] = S_k
-            allsizeofSk[k] = np.count_nonzero(S_k)
+        allS_ks, allsizeofSk = getAllSkandSize(x)
         
-        if StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk) == 0:
+        if StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk) == 0 and ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi) == 0:
             fitCount += 1
             plt.imshow(x)
             plt.title("solution image")
