@@ -10,10 +10,10 @@ import math
 import sys
 
 K = 10
-C = 3
+# C = 3
 NEGINF = -99999999999
 IMGH = 10
-IMGW = 10
+IMGW = 20
 FREESPACEWEIGHT = 10
 
 
@@ -36,27 +36,48 @@ def manualGenerateShadow():
 
 
 def manualGenerateShapeCompletion():
-    shadowCluster = np.zeros((IMGH, IMGW), int)
-    for i in range(int(0.1*IMGH), int(0.3*IMGH)):
-        for j in range(int(0.1*IMGW), int(0.4*IMGW)):
-            shadowCluster[i][j] = 1
+    shapeCompletion = np.zeros((IMGH, IMGW), int)
+    for i in range(int(0.1*IMGH), int(0.5*IMGH)):
+        for j in range(int(0.0*IMGW), int(0.1*IMGW)):
+            shapeCompletion[i][j] = 1
     for i in range(int(0.2*IMGH), int(0.3*IMGH)):
-        for j in range(int(0.5*IMGW), int(0.8*IMGW)):
-            shadowCluster[i][j] = 2
-    for i in range(int(0.5*IMGH), int(0.7*IMGH)):
-        for j in range(int(0.2*IMGW), int(0.4*IMGW)):
-            shadowCluster[i][j] = 3
-    for i in range(int(0.6*IMGH), int(0.7*IMGH)):
-        for j in range(int(0.6*IMGW), int(0.7*IMGW)):
-            shadowCluster[i][j] = 4
-    for i in range(int(0.7*IMGH), int(0.9*IMGH)):
-        for j in range(int(0.6*IMGW), int(0.9*IMGW)):
-            shadowCluster[i][j] = 5
-    return shadowCluster
+        for j in range(int(0.5*IMGW), int(0.6*IMGW)):
+            shapeCompletion[i][j] = 2
+    for i in range(int(0.4*IMGH), int(0.7*IMGH)):
+        for j in range(int(0.15*IMGW), int(0.3*IMGW)):
+            shapeCompletion[i][j] = 3
+    for i in range(int(0.1*IMGH), int(0.3*IMGH)):
+        for j in range(int(0.8*IMGW), int(0.95*IMGW)):
+            shapeCompletion[i][j] = 4
+    for i in range(int(0.3*IMGH), int(0.6*IMGH)):
+        for j in range(int(0.65*IMGW), int(0.9*IMGW)):
+            shapeCompletion[i][j] = 5
+    for i in range(int(0.8*IMGH), int(0.9*IMGH)):
+        for j in range(int(0.05*IMGW), int(0.2*IMGW)):
+            shapeCompletion[i][j] = 6
+    for i in range(int(0.5*IMGH), int(0.8*IMGH)):
+        for j in range(int(0.4*IMGW), int(0.5*IMGW)):
+            shapeCompletion[i][j] = 7
+    return shapeCompletion
 
 
 def generateShadowCluster(shapeCompletion):
-    pass
+    shadowCluster = np.zeros((IMGH, IMGW), int)
+    clusterIndex = 1
+    isLastColOccupied = 0
+    for j in range(IMGW):
+        isColOccupied = 0
+        for i in range(IMGH):
+            if isColOccupied == 1:
+                shadowCluster[i][j] = clusterIndex
+            else:
+                if shapeCompletion[i][j] != 0:
+                    isColOccupied = 1
+                    shadowCluster[i][j] = clusterIndex
+        if isColOccupied == 0 and isLastColOccupied == 1:
+            clusterIndex += 1
+        isLastColOccupied = isColOccupied
+    return shadowCluster
 
 
 def getBelObjectMask(x, k):
@@ -126,6 +147,7 @@ def entrophySk(shadowCluster, x, k, allS_ks, allsizeofSk):
     # plt.figure()
     # plt.imshow(S_kc)
     # plt.title("S k c")
+    C = np.amax(shadowCluster)
     for c in range(1, C+1):
         sizeofSkc = np.count_nonzero(S_kc == c)
         if sizeofSkc == 0:
@@ -203,11 +225,11 @@ def SensorModelCombined(x):
     x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
     allS_ks, allsizeofSk = getAllSkandSize(x)
-    shadowCluster = manualGenerateShadow() # TODO: change it to depending on shape completion
-    SSM = -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
     shapeCompletion = manualGenerateShapeCompletion()
     allq_is, allsizeofqi = getAllqi(shapeCompletion)
     SCO = -ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi)
+    shadowCluster = generateShadowCluster(shapeCompletion)
+    SSM = -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
     return SSM + SCO
 
 
@@ -279,6 +301,39 @@ def progressCallback(x, f, accepted):
 
 
 if __name__ == '__main__':
+    shapeCompletion = manualGenerateShapeCompletion()
+    plt.figure()
+    plt.imshow(shapeCompletion)
+    plt.title("shape Completion")
+    plt.savefig("Shape_Completion.png")
+
+    shadowCluster = generateShadowCluster(shapeCompletion)
+    plt.figure()
+    plt.imshow(shadowCluster)
+    plt.title("shadow Cluster")
+    plt.savefig("shadow_Cluster.png")
+
+    x0 = np.ndarray((IMGH, IMGW), int)
+    for i in range(np.shape(x0)[0]):
+        for j in range(np.shape(x0)[1]):
+            x0[i][j] = random.randint(0,K)
+
+    takestep = ChangeToNeighbourLabel()
+    minimizer_kwargs = {"method": "BFGS"}
+    # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
+    mcmc = basinhopping(SensorModelCombined, x0, niter=300, \
+            minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
+                stepsize=K, callback=progressCallback)
+    print(type(mcmc))
+    print(np.shape(mcmc.x))
+    print(mcmc.fun)
+    print(np.reshape(mcmc.x, (IMGH, IMGW)))
+    plt.figure()
+    plt.imshow(np.reshape(mcmc.x, (IMGH, IMGW)))
+    plt.title("final guess")
+    plt.savefig("final_guess_100.png")
+
+"""
     x0 = np.ndarray((IMGH, IMGW), int)
     # for i in range(np.shape(x0)[0]):
     #     for j in range(np.shape(x0)[1]):
@@ -335,4 +390,4 @@ if __name__ == '__main__':
     plt.imshow(np.reshape(mcmc.x, (IMGH, IMGW)))
     plt.title("final guess")
     plt.savefig("final_guess_100.png")
-
+"""
