@@ -12,8 +12,8 @@ import sys
 K = 10
 C = 3
 NEGINF = -99999999999
-IMGH = 10
-IMGW = 20
+IMGH = 4
+IMGW = 4
 FREESPACEWEIGHT = 10
 
 
@@ -21,7 +21,7 @@ def eprint(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
 
 
-def generateShadowCluster():
+def manualGenerate():
     shadowCluster = np.zeros((IMGH, IMGW), int)
     for i in range(int(0.1*IMGH), int(0.3*IMGH)):
         for j in range(int(0.1*IMGW), int(0.8*IMGW)):
@@ -33,6 +33,10 @@ def generateShadowCluster():
         for j in range(int(0.6*IMGW), int(0.95*IMGW)):
             shadowCluster[i][j] = 3
     return shadowCluster
+
+
+def generateShadowCluster(shapeCompletion):
+    pass
 
 
 def getBelObjectMask(x, k):
@@ -126,9 +130,50 @@ def StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk):
 def StrongSensorModelforMCMC(x):
     x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
-    shadowCluster = generateShadowCluster()
+    shadowCluster = manualGenerate() # TODO: change it to depending on shape completion
     allS_ks, allsizeofSk = getAllSkandSize(x)
     return -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
+
+
+def getAllqi(shapeCompletion):
+    allq_is = [None] * (K+1)
+    allsizeofqi = [None] * (K+1)
+    for k in range(K+1):
+        q_i = getBelObjectMask(shapeCompletion, k)
+        allq_is[k] = q_i
+        allsizeofqi[k] = np.count_nonzero(q_i)
+    return allq_is, allsizeofqi
+
+
+def computePqi(allq_is, allsizeofqi, i, allS_ks, allsizeofSk):
+    if allsizeofqi[i] == 0:
+        return 1
+    P = [None] * (K + 1)  # from 0 to K
+    P[0] = 1e-10
+    for k in range(1, K + 1):
+        intersection = allq_is[i] & allS_ks[k]
+        sizeofInter = np.count_nonzero(intersection)
+        union = allq_is[i] | allS_ks[k]
+        sizeofUnion = np.count_nonzero(union)
+        P[k] = sizeofInter / sizeofUnion
+    Pmax = max(P)
+    return Pmax
+
+
+def ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi):
+    logP = 0.0
+    for i in range(1, K + 1):
+        logP += allsizeofqi[i] * np.log(computePqi(allq_is, allsizeofqi, i, allS_ks, allsizeofSk))
+    return logP
+
+
+def ShapeCompletionOverlapForMCMC(x):
+    x = np.reshape(x, (IMGH, IMGW))
+    x = x.astype(int)
+    shapeCompletion = manualGenerate()
+    allS_ks, allsizeofSk = getAllSkandSize(x)
+    allq_is, allsizeofqi = getAllqi(shapeCompletion)
+    return -ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi)
 
 """
 class State(object):
@@ -137,7 +182,7 @@ class State(object):
         for i in range(np.shape(self.x0)[0]):
             for j in range(np.shape(self.x0)[1]):
                 self.x0[i][j] = random.randint(0,K)
-        self.shadowCluster = generateShadowCluster()
+        self.shadowCluster = manualGenerate()
 """
 
 class ChangeRandomly(object):
@@ -146,8 +191,13 @@ class ChangeRandomly(object):
 
     def __call__(self, x):
         i = random.randint(0, IMGH-1)  # endpoints included
-        j = random.randint(0, IMGW-1)
-        x[i*IMGW + j] = random.randint(0, K)
+        j = random.randint(0, IMGW - 1)
+        choice = random.randint(0,1)
+        # choice = 1
+        if choice == 0:
+            x[i*IMGW + j] = 0
+        else:
+            x[i*IMGW + j] = random.randint(0, K)
         return x
 
 
@@ -189,23 +239,25 @@ if __name__ == '__main__':
     plt.savefig("initial_guess.png")
     print(x0)
 
-    shadowCluster = generateShadowCluster()
+    shadowCluster = manualGenerate()
     plt.figure()
     plt.imshow(shadowCluster)
     plt.title("shadow Cluster")
     plt.savefig("shadow_Cluster.png")
 # -------------------------------------------------
     allS_ks, allsizeofSk = getAllSkandSize(x0)
+    allq_is, allsizeofqi = getAllqi(shadowCluster)
 
     print(freeSpaceOverlapping(shadowCluster, x0, K, allS_ks, allsizeofSk))
     print(probabilityShadowCluster(shadowCluster, x0, allS_ks, allsizeofSk))
     print(StrongSensorModel(shadowCluster, x0, allS_ks, allsizeofSk))
     print(StrongSensorModelforMCMC(x0))
+    print(ShapeCompletionOverlapForMCMC(x0))
 
     takestep = ChangeToNeighbourLabel()
     minimizer_kwargs = {"method": "BFGS"}
     # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
-    mcmc = basinhopping(StrongSensorModelforMCMC, x0, niter=100, \
+    mcmc = basinhopping(ShapeCompletionOverlapForMCMC, x0, niter=100, \
             minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
                 stepsize=K, callback=progressCallback)
     print(type(mcmc))
