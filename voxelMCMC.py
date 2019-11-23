@@ -225,12 +225,53 @@ def SensorModelCombined(x):
     x = np.reshape(x, (IMGH, IMGW))
     x = x.astype(int)
     allS_ks, allsizeofSk = getAllSkandSize(x)
-    shapeCompletion = manualGenerateShapeCompletion()
+    # shapeCompletion = manualGenerateShapeCompletion()
+    global shapeCompletion
     allq_is, allsizeofqi = getAllqi(shapeCompletion)
     SCO = -ShapeCompletionOverlap(x, allS_ks, allsizeofSk, allq_is, allsizeofqi)
     shadowCluster = generateShadowCluster(shapeCompletion)
     SSM = -StrongSensorModel(shadowCluster, x, allS_ks, allsizeofSk)
     return SSM + SCO
+
+
+def actionModel(x0, k, di, dj, theta):
+    pos_k = np.where(x0 == k)
+    # print("position of object ", k, ": ", pos_k)
+    action_k = np.zeros((3,3), float)
+    center = int(math.floor(len(pos_k[0])/2))
+    T_k = np.array([[1, 0, di],
+                    [0, 1, dj],
+                    [0, 0, 1]])
+    O_k = np.array([[1, 0, -pos_k[0][center]],
+                    [0, 1, -pos_k[1][center]],
+                    [0, 0, 1]])
+    R_k = np.array([[math.cos(theta), -math.sin(theta), 0],
+                    [math.sin(theta), math.cos(theta), 0],
+                    [0, 0, 1]])
+    Back_k = np.array([[1, 0, pos_k[0][center]],
+                    [0, 1, pos_k[1][center]],
+                    [0, 0, 1]])
+    action_k = T_k @ Back_k @ R_k @ O_k
+    # print("action on object ", k, ": ", action_k)
+
+    newPosk = np.zeros((len(pos_k[0]), 2), int)
+    for i in range(len(pos_k[0])):
+        posV = np.zeros((3, ))
+        posV[0] = pos_k[0][i]
+        posV[1] = pos_k[1][i]
+        posV[2] = 1
+        newPosV = action_k @ posV
+        # print(newPosV)
+        # newPosV = newPosV.round().astype(int)
+        newPosV = np.floor(newPosV).astype(int)
+        newPosk[i][0] = newPosV[0]
+        newPosk[i][1] = newPosV[1]
+
+    x1 = np.copy(x0)
+    x1[x1 == k] = 0
+    for i in range(len(newPosk)):
+        x1[newPosk[i][0]][newPosk[i][1]] = k
+    return x1
 
 
 """
@@ -293,7 +334,7 @@ class ChangeToNeighbourLabel(object):
 
 
 def progressCallback(x, f, accepted):
-    eprint("at minima %.4f accepted %d" % (f, int(accepted)))
+    # eprint("at minima %.4f accepted %d" % (f, int(accepted)))
     # plt.figure()
     plt.imshow(np.reshape(x, (IMGH, IMGW)))
     plt.title("Current guess")
@@ -301,37 +342,80 @@ def progressCallback(x, f, accepted):
 
 
 if __name__ == '__main__':
+    global shapeCompletion
     shapeCompletion = manualGenerateShapeCompletion()
     plt.figure()
     plt.imshow(shapeCompletion)
-    plt.title("shape Completion")
-    plt.savefig("Shape_Completion.png")
+    plt.title("shape Completion 0")
+    plt.savefig("Shape_Completion_0.png")
 
     shadowCluster = generateShadowCluster(shapeCompletion)
     plt.figure()
     plt.imshow(shadowCluster)
-    plt.title("shadow Cluster")
-    plt.savefig("shadow_Cluster.png")
+    plt.title("shadow Cluster 0")
+    plt.savefig("shadow_Cluster_0.png")
 
-    x0 = np.ndarray((IMGH, IMGW), int)
-    for i in range(np.shape(x0)[0]):
-        for j in range(np.shape(x0)[1]):
-            x0[i][j] = random.randint(0,K)
-
-    takestep = ChangeToNeighbourLabel()
-    minimizer_kwargs = {"method": "BFGS"}
-    # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
-    mcmc = basinhopping(SensorModelCombined, x0, niter=300, \
-            minimizer_kwargs=minimizer_kwargs, disp=True,take_step=takestep, \
-                stepsize=K, callback=progressCallback)
-    print(type(mcmc))
-    print(np.shape(mcmc.x))
-    print(mcmc.fun)
-    print(np.reshape(mcmc.x, (IMGH, IMGW)))
+    # initialize belief of state as first shape completion result
+    x0 = shapeCompletion
     plt.figure()
-    plt.imshow(np.reshape(mcmc.x, (IMGH, IMGW)))
-    plt.title("final guess")
-    plt.savefig("final_guess_100.png")
+    plt.imshow(x0)
+    plt.title("First frame initialization")
+    plt.savefig("initialization.png")
+
+    x1 = []
+    objIndex = 3
+    di = [-3, -3, -2]
+    dj = [3, 3, 2]
+    theta = [math.pi/4, math.pi/2, math.pi/4]
+    for i in range(3):
+        temp = actionModel(x0, objIndex, di[i], dj[i], theta[i])
+        x1.append(temp)
+        plt.figure()
+        plt.imshow(temp)
+        plt.title("Prediction_" + str(i))
+        plt.savefig("prediction_" + str(i)+".png")
+
+    shapeCompletion = np.copy(x1[0])
+    shapeCompletion[0][7] = 0
+    shapeCompletion[3][6] = objIndex
+    shapeCompletion[5][8] = 0
+    shapeCompletion[6][8] = 0
+    shapeCompletion[7][8] = 0
+    shapeCompletion[7][9] = 0
+    plt.figure()
+    plt.imshow(shapeCompletion)
+    plt.title("shape Completion 1")
+    plt.savefig("Shape_Completion_1.png")
+
+    shadowCluster = generateShadowCluster(shapeCompletion)
+    plt.figure()
+    plt.imshow(shadowCluster)
+    plt.title("shadow Cluster 1")
+    plt.savefig("shadow_Cluster_1.png")
+
+    x1AfterMCMC = []
+    bel_x1AfterMCMC = []
+    for i in range(3):
+        print("---------------------- Update particle ", i, "----------------------")
+        takestep = ChangeToNeighbourLabel()
+        minimizer_kwargs = {"method": "BFGS"}
+        # minimizer_kwargs = {"method": "trust-krylov", "jac": False, "hess": HessianUpdateStrategy}
+        mcmc = basinhopping(SensorModelCombined, x1[i], niter=100, \
+                minimizer_kwargs=minimizer_kwargs, disp=False, take_step=takestep, \
+                    stepsize=K, callback=progressCallback)
+        finalGuess = np.reshape(mcmc.x, (IMGH, IMGW))
+        x1AfterMCMC.append(finalGuess)
+        bel_x1AfterMCMC.append(-mcmc.fun)
+        print(type(mcmc))
+        print(np.shape(mcmc.x))
+        print(mcmc.fun)
+        print(finalGuess)
+        plt.figure()
+        plt.imshow(finalGuess)
+        plt.title("final guess " + str(i))
+        plt.savefig("final_guess_" + str(i) + "_100.png")
+    print("Belief of each particle", bel_x1AfterMCMC)
+
 
 """
     x0 = np.ndarray((IMGH, IMGW), int)
